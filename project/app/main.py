@@ -3,7 +3,7 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import Task_Template, Task_TemplateCreate, Task, TaskCreate
+from app.models import Course, User, UserCreate, CourseCreate
 
 app = FastAPI()
 
@@ -17,30 +17,21 @@ async def pong():
     return {"ping": "pong!"}
 
 
-@app.get("/task_templates", response_model=list[Task_Template])
-async def get_task_templates(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(Task_Template))
-    task_templates = result.scalars().all()
-    return [Task_Template(name=task_template.name, risk=task_template.risk, description=task_template.description, id=task_template.id) for task_template in task_templates]
+@app.get("/course", response_model=list[Course])
+async def get_courses(session: AsyncSession = Depends(get_session)):
+    results = await session.execute(select(Course))
+    courses = results.scalars().all()
+    return [Course(title=course.title, date=course.date, lecturer=course.lecturer,
+    limit=course.limit, level=course.level, id=course.id) for course in courses]
 
 
-@app.post("/task_templates")
-async def add_task_template(task_template: Task_TemplateCreate, session: AsyncSession = Depends(get_session)):
-    task_template = Task_Template(name=task_template.name, risk=task_template.risk, description=task_template.description)
-    session.add(task_template)
+@app.post("/course")
+async def add_course(course: CourseCreate, session: AsyncSession = Depends(get_session)):
+    course = Course(title=course.title, date=course.date, lecturer=course.lecturer,
+    limit=course.limit, level=course.level)
+    session.add(course)
     await session.commit()
-    await session.refresh(task_template)
-    return task_template
+    await session.refresh(course)
+    return course
 
 
-@app.post("/tasks")
-async def add_task(task: TaskCreate, session: AsyncSession = Depends(get_session)):
-    task_template = await session.execute(select(Task_Template).where(Task_Template.id == task.task_template_id))
-    if not task_template:
-        raise HTTPException(status_code=404, detail="Task template not found")
-    template = task_template.one()
-    task = Task(task_template_id=1, task_template=template, done=False)
-    session.add(task)
-    await session.commit()
-    await session.refresh(task)
-    return task

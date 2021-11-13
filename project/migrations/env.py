@@ -11,6 +11,7 @@ from alembic import context
 from app.models.album import Album, AlbumCreate
 from app.models.book import Book, BookCreate
 from app.models.movie import Movie, MovieCreate
+from app.models.review import Review, ReviewCreate
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

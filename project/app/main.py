@@ -3,7 +3,11 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
-from app.models import Course, User, UserCreate, CourseCreate
+from app.models.book import Book
+from app.models.movie import Movie
+from app.models.album import Album
+from app.models.base import BaseModel, BaseResp
+from app.utils.validation import validateCreation
 
 app = FastAPI()
 
@@ -17,21 +21,31 @@ async def pong():
     return {"ping": "pong!"}
 
 
-@app.get("/course", response_model=list[Course])
-async def get_courses(session: AsyncSession = Depends(get_session)):
-    results = await session.execute(select(Course))
-    courses = results.scalars().all()
-    return [Course(title=course.title, date=course.date, lecturer=course.lecturer,
-    limit=course.limit, level=course.level, id=course.id) for course in courses]
-
-
-@app.post("/course")
-async def add_course(course: CourseCreate, session: AsyncSession = Depends(get_session)):
-    course = Course(title=course.title, date=course.date, lecturer=course.lecturer,
-    limit=course.limit, level=course.level)
-    session.add(course)
+@app.post("/add")
+async def add(type: str, data: BaseModel, session: AsyncSession = Depends(get_session)):
+    validateCreation(data)
+    if (type == "book"):
+        entry = Book(title=data.title, creator=data.creator, genre=data.genre)
+    elif (type == "movie"):
+        entry = Movie(title=data.title, creator=data.creator, genre=data.genre)
+    else:
+        entry = Album(title=data.title, creator=data.creator, genre=data.genre)
+    if not entry.genre:
+        raise HTTPException(status_code=404, detail="Invalid genre!")
+    session.add(entry)
     await session.commit()
-    await session.refresh(course)
-    return course
+    await session.refresh(entry)
+    return entry
 
 
+@app.get("/get", response_model=list[BaseResp])
+async def getData(type: str, session: AsyncSession = Depends(get_session)):
+    if (type == "book"):
+        repo = Book
+    elif (type == "movie"):
+        repo = Movie
+    else:
+        repo = Album
+    results = await session.execute(select(repo))
+    objects = results.scalars().all()
+    return [repo(id=object.id, title=object.title, creator=object.creator, genre=object.genre) for object in objects]

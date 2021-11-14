@@ -1,7 +1,6 @@
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.exc import NoResultFound
 
 from app.db import get_session
 from app.models.book import Book
@@ -9,8 +8,8 @@ from app.models.movie import Movie
 from app.models.album import Album
 from app.models.base import BaseModel, BaseResp
 from app.models.review import Review, ReviewCreate
-from app.utils.validation import validateCreation
-from app.utils.updatePar import updateParameters
+from app.utils.validation import validateCreation, validateReview
+from app.utils.updatePar import updateParameters, updateReview
 
 app = FastAPI()
 
@@ -26,6 +25,7 @@ async def pong():
 
 @app.post("/review")
 async def add_review(type: str, data: ReviewCreate, session: AsyncSession = Depends(get_session)):
+    validateReview(data)
     try:
         if type == "book":
             review = Review(text=data.text, rating=data.rating, book_id=data.book_id)
@@ -42,21 +42,49 @@ async def add_review(type: str, data: ReviewCreate, session: AsyncSession = Depe
 
 @app.get("/review")
 async def get_review(id: int, session: AsyncSession = Depends(get_session)):
-    review = await session.get(Review, id)
-    if not review:
-        raise HTTPException(status_code=404, detail=f"Review not found!")
-    if review.book_id:
-        object = await session.get(Book, review.book_id)
-    elif review.movie_id:
-        object = await session.get(Movie, review.movie_id)
-    else:
-        object = await session.get(Album, review.album_id)
-    if not object:
-        raise HTTPException(status_code=404, detail=f"Review object invalid!")
-    response = {}
-    response["review"] = review
-    response["object"] = object
-    return response
+    try:
+        review = await session.get(Review, id)
+        if not review:
+            raise HTTPException(status_code=404, detail=f"Review not found!")
+        if review.book_id:
+            object = await session.get(Book, review.book_id)
+        elif review.movie_id:
+            object = await session.get(Movie, review.movie_id)
+        else:
+            object = await session.get(Album, review.album_id)
+        if not object:
+            raise HTTPException(status_code=404, detail=f"Review object invalid!")
+        response = {}
+        response["review"] = review
+        response["object"] = object
+        return response
+    except:
+        raise HTTPException(status_code=400, detail=f"Failed to get review!")
+
+@app.put("/review", response_model=Review)
+async def get_review(id: int, data: ReviewCreate ,session: AsyncSession = Depends(get_session)):
+    validateReview(data)
+    try:
+        review = await session.get(Review, id)
+        if not review:
+            raise HTTPException(status_code=404, detail=f"Review not found!")
+        response = updateReview(review, data)
+        session.add(response)
+        await session.commit()
+        await session.refresh(response)
+        return response
+    except:
+        raise HTTPException(status_code=400, detail=f"Failed to update review!")
+
+
+@app.delete("/review", response_model= bool)
+async def delete_hero(id: int, session: AsyncSession = Depends(get_session)):
+    result = await session.get(Review, id)
+    if not result:
+        raise HTTPException(status_code=404, detail=f"{type} not found!")
+    await session.delete(result)
+    await session.commit()
+    return True
 
 
 @app.post("/add")
